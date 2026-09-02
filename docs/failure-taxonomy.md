@@ -128,11 +128,251 @@ makes. What a real deployment would still need, not in this graph:
 
 ## Module: dispute-ingestion-router
 
-_(pending — appended by the dispute-ingestion-router subagent)_
+Owner: `dispute-ingestion-router`. Scope: webhook ingestion, the `DisputeCase`
+model/table, reason-code classification, the category→required-evidence mapping
+exposure, phase-transition tracking. Not evidence content, risk, or scoring.
+
+### What actually happens on an unrecognised reason code
+
+The classifier (`src/ingestion/classification.py`) is a pure view over
+`src/common/reason_codes.py`. On a `(network, code)` pair with no entry in
+`REASON_CODE_TO_CATEGORY` it returns `category = "needs_manual_classification"`
+with `needs_manual_classification = True` and a `reason` string that names the
+code and states it was "routed to manual classification rather than guessed".
+There is **no nearest-neighbour / fuzzy fallback** — this is deliberate. A real
+network code we don't map yet (Visa 13.7 / 10.1, MC 4841 / 4846, Amex C14, RuPay
+121, Discover 4752 in the corpus) is a known, expected gap, not an error.
+
+Concrete consequences and residual risk:
+
+- **The dispute is still ingested and tracked.** A `DisputeCase` row is written
+  with `category = "needs_manual_classification"`, full phase history, and a
+  correct `respond_by` — so the deadline clock is not lost while a human
+  classifies it. It just carries no `required_slots` / `evidence_types`, so
+  `evidence-assembler` has nothing to assemble against and must treat it as
+  defer-to-human. That hand-off contract is asserted here but *enforced*
+  downstream; if a future scorer forgets to check the flag, a manual-bucket case
+  could silently get a low-information recommendation. Flagged for `qa-evaluator`.
+- **Missing `network` is folded into the same bucket** with a distinct `reason`
+  ("missing network or reason_code … cannot look up a category"). A caller that
+  cannot tell "unmapped code" from "malformed payload" apart without reading the
+  `reason` string — the machine-readable signal is the same boolean for both.
+- **A code could be *wrong* rather than *unmapped*** (issuer sends `4863` on a
+  Visa dispute). We would classify it as whatever `visa:4863` maps to — here,
+  nothing, so manual — but a collision with a real Visa code would be
+  mis-categorised with no signal. We do not validate code-belongs-to-network.
+- ~8.5% of the synthetic corpus (11 / 129) hits this bucket by construction; that
+  fraction is not calibrated to any real system's mapping-coverage rate.
+
+### Confidence of the phase-transition logic on out-of-order delivery
+
+Razorpay's webhook docs do not guarantee ordered delivery. The handler
+(`src/ingestion/service.py`) is built around **monotonic phase rank** as the
+single source of truth for "where is this dispute now", using
+`phase_rank()` / `PHASE_ORDER` from `models_base`:
+
+- **Redelivery (same `event_id`, or same phase+status+`respond_by`)** → true
+  no-op. No history row, no `event_count` bump, `DisputeCase` untouched. Solid —
+  covered by tests replaying the entire 135-event corpus twice and asserting 129
+  rows.
+- **Genuine forward advance (`incoming_rank > current_rank`)** → update in place,
+  append a `phase_advance` history row, and if the prior status was terminal
+  (`won`/`lost`/`closed`) mark `is_reopen` and bump `reopen_count`. Confident —
+  the 6 real reopen chains plus a synthetic `open→won→pre_arbitration` chain are
+  tested end to end, and the reopen stays queryable via `get_phase_history()` /
+  `was_reopened()`.
+- **Out-of-order / stale (`incoming_rank < current_rank`, or an `event_created_at`
+  older than the newest one already recorded)** → recorded as an `out_of_order`
+  history row and **otherwise ignored**. The case keeps its furthest-advanced
+  phase and status; it is never rolled back. This is the safe direction to be
+  wrong in, but it has real limits:
+
+  **Where this logic is NOT confident:**
+
+  1. **A late event carrying a genuine field correction is dropped.** If the
+     `chargeback` event was delayed and actually contains the corrected
+     `respond_by` or `amount`, we ignore it because a later-phase event already
+     landed. We keep the newer-phase event's values, which are usually right, but
+     not guaranteed. No reconciliation pass.
+  2. **Same-rank reordering is decided purely by timestamp.** Two events at the
+     same phase with a status change (`under_review` → `won`) arriving reversed:
+     we apply whichever has the newer `event_created_at`. If timestamps are equal
+     or missing, last-write-wins by arrival order — a coin flip.
+  3. **First-contact at a late phase looks normal.** If the very first webhook we
+     ever see for a dispute is its `arbitration` event (earlier ones lost, never
+     delivered), we create the case at `arbitration` with a one-row history and
+     **no reopen flag** — the escalation trail before that point is simply gone,
+     and nothing signals that it is missing.
+  4. **`phase_rank` collapses distinct clocks.** Each phase has its own deadline;
+     we track the current `respond_by` but not per-phase SLA history beyond what
+     is frozen in each history row. A dispute that skips a phase entirely (rank
+     jump of 2+) is treated as a normal advance with no note that a phase was
+     skipped.
+  5. **Wall-clock `recorded_at` is `int(time.time())` at ingest**, so history
+     ordering within a burst relies on the autoincrement `seq`, not on time.
+     Fine for a single-process demo; a concurrent deployment would need the DB to
+     serialise the read-modify-write on a dispute id (currently no row lock).
 
 ## Module: risk-graph-service
 
-_(pending — appended by the risk-graph-service subagent)_
+Owner: `risk-graph-service`. This module produces `AccountRiskProfile` (graph
+signals + COD/returns signals) as **enrichment** for `confidence-scorer-review`.
+It does not classify disputes, assemble evidence, or make the routing decision.
+
+### What it computes, and the window scheme
+
+`baseline_deviation` is a real change-over-time measure, not a cross-account
+percentile at a single instant:
+
+- The timestamped edge log (`transaction_edges`, ~3,715 edges, 2026-05-01 →
+  2026-07-29) is sliced into **14-day windows advanced by 7 days** → 13
+  overlapping windows. Overlap gives each account a smoother centrality series to
+  build a baseline from at demo scale, where any single window is sparse.
+- Per window: weighted PageRank (numpy power iteration — networkx 3.x delegates
+  PageRank to SciPy, which is not a project dependency) and **undirected**
+  betweenness centrality.
+- Per account: its first ~40% of active windows are the "establishment
+  baseline". Every later window is scored for how far its centrality has moved
+  from that baseline (MAD-based robust z, capped at 15 for betweenness / 8 for
+  PageRank), **gated by** `illicit_counterparty_fraction` — the share of that
+  window's counterparties that are thin-file `fringe` accounts or sit in a
+  different `cluster` than the account was established in.
+- Thin-history accounts (≤1 active window before the timeline midpoint) have no
+  establishment baseline, so they get a separate **emergence** term: late
+  appearance as a high-betweenness, high-throughput pass-through hub.
+- Velocity/recency features (recent-window txn count, rolling velocity,
+  days-since-last-txn, first-time-counterparty rate, fan-out ratio) are stored on
+  the same row.
+
+Measured on `data/external.db` (`HIGH` band ≥ 8.0, `ELEVATED` ≥ 4.0):
+
+| account | role | `baseline_deviation` | band | driver |
+|---|---|---|---|---|
+| `ACC_MULE_FANOUT` | planted mule | **22.6** | high | betweenness z capped (15), 100% new fringe counterparties, illicit frac 0.93 |
+| `ACC_MULE_PASSTHRU` | planted mule | **20.5** | high | emergence term — no pre-midpoint history, late betweenness 0.23 vs floor 0.0026, illicit frac 0.76 |
+| `ACC_MULE_BRIDGE` | planted mule | **14.3** | high | betweenness z capped (15) in late windows vs a near-zero market-A-only baseline, 100% counterparty turnover, illicit frac 0.71 (market-B bridge) |
+| `ACC_BURSTY_SEASONAL` | legit control | **2.25** | low | betweenness z is also capped at 15 (festival hub), but `illicit_counterparty_fraction == 0.00` zeroes the gate — same market-A regulars and suppliers throughout |
+| `ACC_BURSTY_PAYDAY` | legit control | **0.00** | low | betweenness is *high but flat* (~0.11 every active month), so z ≈ 0; same 40 recipients, zero turnover |
+
+All three planted mules land in `high`; both bursty controls land in `low`, well
+below every mule. Truncating the edge log to the pre-shift period
+(`test_baseline_deviation_needs_the_post_shift_history`) collapses
+`ACC_MULE_FANOUT`/`ACC_MULE_BRIDGE` back under the `elevated` threshold — the
+signal is genuinely temporal.
+
+### The honest false-positive source (this is the point, not a flaw to hide)
+
+**A legitimate account with a real, large, structural behavioural change is
+structurally indistinguishable from a shifting mule.** The detector keys on
+exactly the thing a genuine pivot also produces: a betweenness/PageRank move
+away from an established baseline, toward counterparties the account hasn't used
+before. A new merchant onboarding a different supplier network, a consumer who
+starts shopping across a city/market boundary, a small business pivoting
+product lines — all of these look like `ACC_MULE_BRIDGE` to this module.
+
+What we actually observed on the held-in synthetic graph, at the `high` band
+(deviation ≥ 8.0), 10 accounts total:
+
+- **3 planted mules** — true positives.
+- **`ACC_FRINGE_017` / `_035` / `_036` / `_037`** (dev 9–18) — these are the
+  fan-out *recipients* of `ACC_MULE_FANOUT`. Arguably true positives (they are
+  receiving mule proceeds), but the module has no ground truth saying so; it is
+  flagging them for the same structural reason (sudden inflow from a single new
+  source, thin prior history). A human reviewer would want to see them anyway.
+- **`ACC_CONS_119` / `_163` / `_173`** (dev 8.3–10.1) — **genuine false
+  positives.** Ordinary market-A consumers whose synthetic merchant payments
+  happen to cross into market-B merchants. Because the `cluster` label is coarse,
+  "counterparty in a different cluster" fires, and their sparse per-window
+  history (4 inbound payroll credits, ~8–12 outbound) makes a single active
+  window look like 50–100% counterparty turnover. Cost: each is a review-queue
+  item that a human closes in seconds — the false-positive *cost* here is
+  analyst time, not a frozen account (the defense-only boundary guarantees the
+  module cannot act), but at production scale this class would dominate the
+  queue.
+
+The `illicit_counterparty_fraction` gate is what keeps `ACC_BURSTY_SEASONAL`
+(betweenness z = 15, same as the mules) from being flagged — but that gate is
+only as good as the `cluster` / `account_type` metadata behind it. Which leads
+to the known weaknesses:
+
+### Known weaknesses / where this module is uncertain
+
+1. **`cluster` is a given label, not graph-derived.** In production the
+   community assignment should come from running community detection (Louvain /
+   label propagation) on the graph itself and refreshing it, so "cross-community
+   bridge" is measured, not read from a column. We tried Louvain on the full
+   graph (`networkx.community.louvain_communities`): at this scale it split the
+   232 consumers into 5 communities that did **not** line up with the
+   market-A/market-B structure, making the cross-community signal noisier than
+   the synthetic `cluster` label. So this build uses `cluster`. Named here rather
+   than hidden: the detector leans on a piece of metadata a real deployment
+   would have to earn.
+2. **The `HIGH_DEVIATION_THRESHOLD = 8.0` is fitted to this synthetic graph.**
+   It sits in the empirical gap between the bursty controls (≤ 2.25) and the
+   mules (≥ 14.3). On real data this gap will not be this clean and the
+   threshold would need recalibration against a labelled sample — and the
+   band is advisory only; `confidence-scorer-review` owns the actual routing
+   cut.
+3. **`baseline_deviation` is unbounded-ish and then capped.** Betweenness z is
+   clipped at 15, so `ACC_MULE_FANOUT` and `ACC_MULE_BRIDGE` both report a
+   capped component — beyond the cap, "how big" stops mattering and only the
+   illicit-context gate separates them. A more principled transform (rank-based,
+   or IQR/Tukey outlier score) would avoid the cap; deferred for the deadline.
+4. **`ACC_MULE_PASSTHRU` is caught by the emergence heuristic, not by the
+   PageRank/betweenness-vs-baseline path** — its betweenness z is only 2.5
+   because by the time it has 3 active windows the pass-through behaviour is
+   already its "normal". The emergence term (`btw / global_floor`, capped at 20,
+   gated by illicit fraction) is a second, coarser detector bolted alongside the
+   primary one; it would fire on any legitimate account that genuinely starts
+   life late in the observation window as a hub (a newly-onboarded payment
+   aggregator, say).
+5. **Planted-mule prevalence (~1% of accounts) is ~10× a real AML base rate**
+   (inherited from `synthetic-data-generator`'s calibration note). Any
+   precision/recall `qa-evaluator` reports for this module should be read next to
+   that inflation — the clean 3-of-3 / 0-of-2 separation here is partly a
+   property of a demo-scale graph with loud planted signal.
+6. **Batch is whole-graph and single-threaded.** `run_nightly_batch()` recomputes
+   every account from scratch (~a few seconds for 305 accounts / 3.7K edges).
+   That is fine at demo scale and deliberately structured as a schedulable
+   callable with no daemon, but it does not do incremental / windowed
+   re-computation — a real graph would need that.
+7. **`days_since_last_txn` scans the full edge list per account** (O(accounts ×
+   edges)). Acceptable at this scale; would need an index/pre-aggregation
+   otherwise.
+
+### COD / returns signal
+
+`returns_risk_score` (0–1) is a weighted composite of `return_rate_pct`,
+lifetime return ratio, `delivery_refusals`, `previous_dispute_count`,
+`multiple_accounts_flag`, `refund_to_different_account`, and whether any of the
+account's addresses is a `high_return_density` hotspot. It is a **signal, not a
+decision** — banded low/elevated/high for the scorer to weigh. Weakness: the
+weights (0.45 on return rate, etc.) are hand-set, not fitted to outcomes, and
+the synthetic returns-abuse cohort (~22% of accounts) is itself a designer
+number (see `synthetic-data-generator`'s note). The score reliably ranks the
+planted abuse cohort above the median account, which is all it claims to do.
+
+### Defense-only boundary
+
+This module reads `transaction_edges`, `account_nodes`, `customer_return_history`
+and `addresses` through `read_only_session()` (driver-level read-only) and writes
+**only** `account_risk_profile` in the system store through `system_session()`.
+`GET /accounts/{id}/risk-profile` calls `src.risk.service.get_risk_profile` and
+nothing else — it holds no reference to `src.risk.batch` or `src.risk.graph`
+(asserted two ways in `test_risk_graph_service.py`: a runtime test that patches
+every graph-compute function to raise and still gets a 200, and a static test
+that inspects the module namespaces). A lookup for an unknown account is a 404,
+never an on-request graph build.
+
+### DPIP framing (cited, not asserted)
+
+The profile shape — per-account, with named graph signals and the explicit
+baseline each was measured against — is deliberately structured so it could feed
+or be enriched from a shared mule-intelligence layer. This aligns with RBI's
+Digital Payments Intelligence Platform direction; `compliance-knowledge-graph`
+node `dpip_shared_intelligence_alignment` (RBI DPIP, cited at initiative level)
+is attached to every API response as `regulatory_grounding` rather than left as
+an uncited code comment.
 
 ## Module: evidence-assembler
 
