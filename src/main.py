@@ -43,6 +43,13 @@ def _mount_routers() -> None:
         pass
 
     try:
+        from src.evidence.api import router as evidence_router
+
+        app.include_router(evidence_router)
+    except ImportError:
+        pass
+
+    try:
         from src.scoring.api import router as scoring_router
 
         app.include_router(scoring_router)

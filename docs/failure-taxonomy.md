@@ -376,7 +376,184 @@ an uncited code comment.
 
 ## Module: evidence-assembler
 
-_(pending — appended by the evidence-assembler subagent)_
+Owner: `evidence-assembler`. Scope: the `EvidenceBundle` model/table, the
+per-slot `present`/`missing`/`not_applicable` decision, the completeness signal,
+the `explanation_letter` slot, and DPDP citation attachment for PII-bearing
+slots. Not risk scoring, confidence scoring, or routing — this module exposes a
+completeness signal, it does not interpret it.
+
+### `missing` is a first-class, honestly-reported state — never a placeholder
+
+The single rule that shapes this module: a required slot with no backing record
+is `missing`, full stop. There is no code path that synthesises plausible-looking
+content for an absent slot. Concretely:
+
+- `store.fetch_records()` returns only what the read-only external store actually
+  holds. `assembler._extract_slot()` returns `(None, reason, {})` when a record
+  is absent, and the caller writes `slot_status[slot] = "missing"` and leaves the
+  slot **column `NULL`**. Tested: `test_missing_shipping_record_is_missing_never_fabricated`
+  asserts the column is `None`, the status map says `missing`, and the bundle
+  notes name the gap.
+- Three states are kept genuinely distinct. `not_applicable` (the category does
+  not need this slot) is decided *before* any store lookup and can never be
+  reached by a failed lookup; `missing` is only reachable *after* a lookup that
+  came back empty for a slot the category requires. `test_slots_not_required_are_not_applicable`
+  pins this for a `fraud` case (shipping/proof-of-service/cancellation/refund →
+  `not_applicable`, not `missing`).
+
+### Fraction of synthetic disputes with genuinely incomplete bundles (expected, fine)
+
+Measured end-to-end on the committed corpus (`test_corpus_incomplete_bundle_fraction`,
+ingest all 135 webhooks → 129 disputes → assemble each):
+
+| outcome | count | note |
+|---|---|---|
+| `complete` (all required source slots present) | 71 / 129 | ~60% of the corpus, ~60% of resolved |
+| `partial` (≥1 required source slot `missing`) | 47 / 129 | **genuinely incomplete — reported as such** |
+| `pending` (`needs_manual_classification`) | 11 / 129 | not assembled at all (see below) |
+
+**Incomplete-bundle fraction among resolved-category disputes: 47 / 118 ≈ 0.40.**
+This tracks `synthetic-data-generator`'s designed missingness (full 58% / partial
+30% / severe 12%) — the ~40% is the partial+severe share landing on required
+slots. This is a designed test condition for the "report missing honestly" path,
+not a bug: a real dispute-evidence store is far from 100% covered (IEEE-CIS
+columns >50% null), and a system whose premise is "honest, defensible evidence
+assembly" must be able to say "the record simply isn't there" and hand a partial
+bundle to a human rather than paper over it.
+
+### `needs_manual_classification` → not assembled
+
+When the router could not resolve a reason code to a category (`required_slots`
+empty), this module does **not** attempt assembly. It writes a bundle with every
+slot `not_applicable`, `completeness = NULL`, `assembly_status = "pending"`,
+`needs_manual_classification = True`, and a `notes` string stating the
+scorer contract is `defer_to_human`. No `explanation_letter` is generated (there
+are no verified facts to narrate). Tested:
+`test_needs_manual_classification_produces_pending_bundle_not_assembly`. Residual
+risk: the hand-off is a *contract* asserted here and enforced by
+`confidence-scorer-review` — if a future scorer forgets to check the flag, a
+manual-bucket case could get a low-information recommendation. Flagged for
+`qa-evaluator` (same flag the router already raised).
+
+### `explanation_letter` — LLM failure modes
+
+The letter is the one LLM-touched surface in the pipeline. It narrates **only**
+facts already present in other assembled slots, plus the dispute's own
+identifying fields (id, amount, reason, phase) which come from the `DisputeCase`.
+It never introduces evidence.
+
+1. **Hallucinated framing beyond the assembled facts.** The real risk with an LLM
+   here is not a wrong tracking number (we don't give it one unless a `present`
+   `shipping_proof` slot has it) — it is *rhetorical overreach*: asserting "the
+   customer clearly received and used the product" when all we have is a delivery
+   scan, or implying communications exist when they don't. Mitigations, in order
+   of strength:
+   - The deterministic template (always the fallback, and the only path exercised
+     in tests since no `SARVAM_API_KEY` is set) builds the letter by
+     concatenating one flat factual sentence per `present` slot. A `missing` /
+     `not_applicable` slot contributes zero text — safe by construction.
+     `test_explanation_letter_carries_no_content_from_a_non_present_slot` proves
+     a shipping-`missing` case yields a letter with no "tracking" / "delivered" /
+     "carrier" / "signature" language, while a shipping-`present` case does
+     narrate it.
+   - The LLM path (`letter.build_explanation_letter`) gets a strict system prompt
+     ("use ONLY the FACTS provided … if a category of evidence is not in the
+     FACTS, do not mention it") and its output is then **keyword-guarded**: if the
+     letter mentions a claim tied to a slot that is not `present`, the output is
+     rejected and the template is used instead (`explanation_letter_source`
+     records which path won, and `notes` records the rejection reason).
+   - **This guard is best-effort and cannot fully verify NL grounding.** It keys
+     on a conservative fixed keyword list; an LLM that invents a persuasive
+     narrative *without* tripping a keyword ("the item reached its destination
+     without issue") would pass. A stronger check (NLI entailment of each letter
+     sentence against the facts JSON, or a second-model audit) is the named
+     upgrade path; deferred for the deadline. Until then, every letter carries
+     `explanation_letter_source` so a reviewer knows whether a human-auditable
+     template or an LLM wrote it, and the draft-for-submit queue means a human
+     reads it before it goes anywhere.
+2. **Sarvam API unavailability → template fallback.** `src.common.llm.generate`
+   returns `None` on missing key, HTTP ≥ 400 (Sarvam returns 403 for a bad key),
+   timeout, network error, or schema drift. Every one of those degrades silently
+   to the deterministic template. The pipeline has no hard dependency on the LLM
+   being reachable — proven by the fact that the entire test suite runs offline
+   with no key and every letter is still produced.
+3. **Provider lock-in.** The letter is the *only* place a provider swap would be
+   needed, and it is isolated behind `src.common.llm` (one file, OpenAI-shaped
+   request/response). Switching from Sarvam to another provider is a one-file
+   change. The choice of Sarvam (`sarvam-m`, India-sovereign, DPDP/data-residency
+   narrative, free tier) is deliberate and aligned with this system's compliance
+   framing, but nothing structural depends on it. Risk if Sarvam changes its API
+   shape or pricing: degraded to template-only until the wrapper is updated —
+   acceptable, because template-only is a fully working state.
+
+### DPDP citations on PII-bearing slots
+
+`customer_communication`, `shipping_proof`, `billing_proof` are PII-bearing
+(`rc.PII_BEARING_SLOTS`). For each such slot that the category *requires* (whether
+it ended up `present` or `missing`), this module calls
+`src.compliance.lookup(slot_name)` and attaches the returned `RequirementMatch`
+list (with its `Citation` and the standing non-claim `disclaimer`) to
+`EvidenceBundle.compliance_citations`, keyed by slot. Attaching on `missing` too
+is deliberate: the data-minimisation concern is about the *design intent* to hold
+that data category, not only about a found record. What lands:
+
+| slot | requirements returned (from `compliance/graph.py`) |
+|---|---|
+| `customer_communication` | `dpdp_purpose_limitation` (DPDP s. 6(1)), `dpdp_data_minimisation` (DPDP s. 6(1)), `dpdp_storage_limitation` (DPDP s. 8(7)) |
+| `shipping_proof` | `dpdp_data_minimisation` (DPDP s. 6(1)), `dpdp_storage_limitation` (DPDP s. 8(7)) |
+| `billing_proof` | `papg_card_data_storage_limit` (RBI PA-PG MD, regulation-level), `dpdp_data_minimisation` (DPDP s. 6(1)), `dpdp_storage_limitation` (DPDP s. 8(7)) |
+
+Limitation: this is decision-support grounding, not a compliance certification
+(the module-level scope note at the top of this file applies). The citation says
+"this DPDP provision bears on holding this slot"; it does **not** assert the
+bundle is DPDP-compliant. Actual data-minimisation enforcement (are we pulling
+*only* the fields this dispute needs?) is not implemented — the assembler pulls
+the whole matching record from each backing table. Named as a gap: a real
+deployment would project each slot down to the minimum fields and record that
+projection.
+
+### Slots with no dedicated backing table
+
+`refund_confirmation` and `cancellation_proof` have no mirror table in the
+synthetic external store — only the `evidence_availability` flag. When the flag
+is set, this module marks the slot `present` with content
+`{"backed_by": "evidence_availability record", "detail_records_mirrored": false}`
+(plus any refund/cancellation-related `communications` summaries for
+`cancellation_proof`). This is **not** fabrication: `evidence_availability` is the
+store's own authoritative "a record exists in the source system" map (its schema
+comment says exactly that), and the bundle states plainly that the detail records
+are not mirrored at demo scale. `slot_sources` records
+`"evidence_availability (no mirror table)"` for these. A real integration would
+join the actual refund-ledger / cancellation-workflow tables here.
+
+### Where this module is uncertain / defers
+
+- **`present` means "a record exists", not "this evidence wins the dispute".**
+  The module does not assess persuasiveness — a `delivery_status = "refused"`
+  shipment still makes `shipping_proof` `present`. Weighing whether refused
+  delivery *helps or hurts* is the scorer's / a human's call. The bundle surfaces
+  the raw fact (`delivery_status`, `tracking_valid`, `billing_shipping_address_match`,
+  `avs_match`) so a downstream reader can judge.
+- **Completeness excludes `explanation_letter` from its denominator.** The
+  formula is `present / (present + missing)` over the category's required
+  *source* slots — `explanation_letter` is always producible (template fallback)
+  so counting it would inflate every bundle's completeness by one guaranteed
+  point and hide real gaps. This is a deliberate deviation from a literal reading
+  of "over required slots"; the raw `present_count` / `missing_count` and the
+  full `slot_status` map are all persisted so the number is fully auditable.
+- **Timing awareness is a surfaced flag, not an action.** `deadline_pressure` is
+  set when `respond_by` is within 48h and the bundle is not `complete`; the
+  module does not escalate, retry, or reprioritise — it only records the flag and
+  `hours_to_deadline` for the review queue to sort on. It does not own the
+  deadline.
+- **Assembly is single-pass over a static store.** `assembly_passes` is bumped on
+  re-assembly, but there is no watcher for "records trickling in" — a caller must
+  re-invoke `assemble_evidence()` to pick up a shipment row that landed after the
+  first pass. Fine for a batch demo; a real system would re-assemble on external-
+  store change events.
+- **`billing_shipping_address_match` / `avs_match` are carried, not verified.**
+  They come from `evidence_availability` as-is. If that upstream flag is wrong,
+  the bundle repeats the error.
 
 ## Module: confidence-scorer-review
 
