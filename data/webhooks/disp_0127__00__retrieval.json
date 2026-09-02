@@ -1,0 +1,37 @@
+{
+  "created_at": 1785972184,
+  "event": "dispute.created",
+  "event_id": "evt_0129",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 102502,
+        "amount_deducted": 102502,
+        "created_at": 1785972184,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0127",
+        "network": "mastercard",
+        "payment_id": "pay_0128",
+        "phase": "retrieval",
+        "reason_code": "4808",
+        "reason_description": "Authorisation-Related Chargeback",
+        "respond_by": 1789912474,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 102502,
+        "captured": true,
+        "created_at": 1785972184,
+        "currency": "INR",
+        "email": "user8953@hotmail.com",
+        "entity": "payment",
+        "id": "pay_0128",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

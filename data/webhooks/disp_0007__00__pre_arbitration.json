@@ -1,0 +1,37 @@
+{
+  "created_at": 1786605086,
+  "event": "dispute.created",
+  "event_id": "evt_0009",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 397013,
+        "amount_deducted": 397013,
+        "created_at": 1786605086,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0007",
+        "network": "amex",
+        "payment_id": "pay_0008",
+        "phase": "pre_arbitration",
+        "reason_code": "F24",
+        "reason_description": "No Cardholder Authorisation",
+        "respond_by": 1790254518,
+        "status": "under_review"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 397013,
+        "captured": true,
+        "created_at": 1786605086,
+        "currency": "INR",
+        "email": "user8563@rediffmail.com",
+        "entity": "payment",
+        "id": "pay_0008",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

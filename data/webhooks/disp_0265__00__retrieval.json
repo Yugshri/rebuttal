@@ -1,0 +1,37 @@
+{
+  "created_at": 1786575074,
+  "event": "dispute.created",
+  "event_id": "evt_0267",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 50230,
+        "amount_deducted": 50230,
+        "created_at": 1786575074,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0265",
+        "network": "visa",
+        "payment_id": "pay_0266",
+        "phase": "retrieval",
+        "reason_code": "13.3",
+        "reason_description": "Not as Described or Defective",
+        "respond_by": 1790539834,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 50230,
+        "captured": true,
+        "created_at": 1786575074,
+        "currency": "INR",
+        "email": "user3548@yahoo.in",
+        "entity": "payment",
+        "id": "pay_0266",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

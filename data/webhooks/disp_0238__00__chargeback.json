@@ -1,0 +1,37 @@
+{
+  "created_at": 1786466284,
+  "event": "dispute.created",
+  "event_id": "evt_0240",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 18668,
+        "amount_deducted": 18668,
+        "created_at": 1786466284,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0238",
+        "network": "visa",
+        "payment_id": "pay_0239",
+        "phase": "chargeback",
+        "reason_code": "13.3",
+        "reason_description": "Not as Described or Defective",
+        "respond_by": 1788586101,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 18668,
+        "captured": true,
+        "created_at": 1786466284,
+        "currency": "INR",
+        "email": "user7060@rediffmail.com",
+        "entity": "payment",
+        "id": "pay_0239",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

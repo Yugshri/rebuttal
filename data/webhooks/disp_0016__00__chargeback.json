@@ -1,0 +1,37 @@
+{
+  "created_at": 1786646795,
+  "event": "dispute.created",
+  "event_id": "evt_0018",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 56605,
+        "amount_deducted": 56605,
+        "created_at": 1786646795,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0016",
+        "network": "visa",
+        "payment_id": "pay_0017",
+        "phase": "chargeback",
+        "reason_code": "10.4",
+        "reason_description": "Other Fraud - Card Absent Environment",
+        "respond_by": 1788776190,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 56605,
+        "captured": true,
+        "created_at": 1786646795,
+        "currency": "INR",
+        "email": "user7798@outlook.com",
+        "entity": "payment",
+        "id": "pay_0017",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "created_at": 1786226812,
+  "event": "dispute.created",
+  "event_id": "evt_0378",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 175131,
+        "amount_deducted": 175131,
+        "created_at": 1786226812,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0376",
+        "network": "amex",
+        "payment_id": "pay_0377",
+        "phase": "chargeback",
+        "reason_code": "C14",
+        "reason_description": "Paid by Other Means",
+        "respond_by": 1790089755,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 175131,
+        "captured": true,
+        "created_at": 1786226812,
+        "currency": "INR",
+        "email": "user5661@yahoo.in",
+        "entity": "payment",
+        "id": "pay_0377",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

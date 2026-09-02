@@ -1,0 +1,37 @@
+{
+  "created_at": 1787713548,
+  "event": "dispute.created",
+  "event_id": "evt_0398",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 196348,
+        "amount_deducted": 196348,
+        "created_at": 1787713548,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0328",
+        "network": "amex",
+        "payment_id": "pay_0329",
+        "phase": "chargeback",
+        "reason_code": "C05",
+        "reason_description": "Goods/Services Cancelled",
+        "respond_by": 1790290204,
+        "status": "won"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 196348,
+        "captured": true,
+        "created_at": 1787713548,
+        "currency": "INR",
+        "email": "user1619@rediffmail.com",
+        "entity": "payment",
+        "id": "pay_0329",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

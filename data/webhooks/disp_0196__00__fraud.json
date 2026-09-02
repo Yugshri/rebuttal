@@ -1,0 +1,37 @@
+{
+  "created_at": 1788037662,
+  "event": "dispute.created",
+  "event_id": "evt_0198",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 518616,
+        "amount_deducted": 518616,
+        "created_at": 1788037662,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0196",
+        "network": "visa",
+        "payment_id": "pay_0197",
+        "phase": "fraud",
+        "reason_code": "12.2",
+        "reason_description": "Incorrect Transaction Code",
+        "respond_by": 1789010795,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 518616,
+        "captured": true,
+        "created_at": 1788037662,
+        "currency": "INR",
+        "email": "user3826@rediffmail.com",
+        "entity": "payment",
+        "id": "pay_0197",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

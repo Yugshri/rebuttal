@@ -1,0 +1,37 @@
+{
+  "created_at": 1787587796,
+  "event": "dispute.created",
+  "event_id": "evt_0204",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 46276,
+        "amount_deducted": 46276,
+        "created_at": 1787587796,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0202",
+        "network": "visa",
+        "payment_id": "pay_0203",
+        "phase": "chargeback",
+        "reason_code": "12.5",
+        "reason_description": "Incorrect Amount",
+        "respond_by": 1788703642,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 46276,
+        "captured": true,
+        "created_at": 1787587796,
+        "currency": "INR",
+        "email": "user3503@hotmail.com",
+        "entity": "payment",
+        "id": "pay_0203",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

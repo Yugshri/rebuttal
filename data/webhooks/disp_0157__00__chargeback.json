@@ -1,0 +1,37 @@
+{
+  "created_at": 1786778692,
+  "event": "dispute.created",
+  "event_id": "evt_0159",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 502156,
+        "amount_deducted": 502156,
+        "created_at": 1786778692,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0157",
+        "network": "mastercard",
+        "payment_id": "pay_0158",
+        "phase": "chargeback",
+        "reason_code": "4837",
+        "reason_description": "No Cardholder Authorisation",
+        "respond_by": 1790424356,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 502156,
+        "captured": true,
+        "created_at": 1786778692,
+        "currency": "INR",
+        "email": "user3472@yahoo.in",
+        "entity": "payment",
+        "id": "pay_0158",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

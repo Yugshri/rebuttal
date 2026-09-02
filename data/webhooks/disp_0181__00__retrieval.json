@@ -1,0 +1,37 @@
+{
+  "created_at": 1787755658,
+  "event": "dispute.created",
+  "event_id": "evt_0183",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 516595,
+        "amount_deducted": 516595,
+        "created_at": 1787755658,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0181",
+        "network": "mastercard",
+        "payment_id": "pay_0182",
+        "phase": "retrieval",
+        "reason_code": "4834",
+        "reason_description": "Point-of-Interaction Error",
+        "respond_by": 1789028622,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 516595,
+        "captured": true,
+        "created_at": 1787755658,
+        "currency": "INR",
+        "email": "user1607@rediffmail.com",
+        "entity": "payment",
+        "id": "pay_0182",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "created_at": 1787520484,
+  "event": "dispute.created",
+  "event_id": "evt_0147",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 433698,
+        "amount_deducted": 433698,
+        "created_at": 1787520484,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0145",
+        "network": "visa",
+        "payment_id": "pay_0146",
+        "phase": "chargeback",
+        "reason_code": "11.1",
+        "reason_description": "Card Recovery Bulletin",
+        "respond_by": 1788841756,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 433698,
+        "captured": true,
+        "created_at": 1787520484,
+        "currency": "INR",
+        "email": "user6231@yahoo.in",
+        "entity": "payment",
+        "id": "pay_0146",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

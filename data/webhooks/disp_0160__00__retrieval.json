@@ -1,0 +1,37 @@
+{
+  "created_at": 1786322890,
+  "event": "dispute.created",
+  "event_id": "evt_0162",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 787568,
+        "amount_deducted": 787568,
+        "created_at": 1786322890,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0160",
+        "network": "mastercard",
+        "payment_id": "pay_0161",
+        "phase": "retrieval",
+        "reason_code": "4837",
+        "reason_description": "No Cardholder Authorisation",
+        "respond_by": 1789274175,
+        "status": "under_review"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 787568,
+        "captured": true,
+        "created_at": 1786322890,
+        "currency": "INR",
+        "email": "user1058@hotmail.com",
+        "entity": "payment",
+        "id": "pay_0161",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

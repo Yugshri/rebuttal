@@ -1,0 +1,37 @@
+{
+  "created_at": 1787196200,
+  "event": "dispute.created",
+  "event_id": "evt_0321",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 78169,
+        "amount_deducted": 78169,
+        "created_at": 1787196200,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0319",
+        "network": "visa",
+        "payment_id": "pay_0320",
+        "phase": "pre_arbitration",
+        "reason_code": "13.2",
+        "reason_description": "Cancelled Recurring",
+        "respond_by": 1788477120,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 78169,
+        "captured": true,
+        "created_at": 1787196200,
+        "currency": "INR",
+        "email": "user1037@gmail.com",
+        "entity": "payment",
+        "id": "pay_0320",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

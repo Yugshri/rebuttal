@@ -1,0 +1,37 @@
+{
+  "created_at": 1787296560,
+  "event": "dispute.created",
+  "event_id": "evt_0273",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 139801,
+        "amount_deducted": 139801,
+        "created_at": 1787296560,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0271",
+        "network": "mastercard",
+        "payment_id": "pay_0272",
+        "phase": "chargeback",
+        "reason_code": "4853",
+        "reason_description": "Cardholder Dispute",
+        "respond_by": 1790023603,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 139801,
+        "captured": true,
+        "created_at": 1787296560,
+        "currency": "INR",
+        "email": "user2665@gmail.com",
+        "entity": "payment",
+        "id": "pay_0272",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

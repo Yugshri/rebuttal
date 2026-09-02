@@ -1,0 +1,37 @@
+{
+  "created_at": 1787816513,
+  "event": "dispute.created",
+  "event_id": "evt_0264",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 198160,
+        "amount_deducted": 198160,
+        "created_at": 1787816513,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0262",
+        "network": "amex",
+        "payment_id": "pay_0263",
+        "phase": "chargeback",
+        "reason_code": "C05",
+        "reason_description": "Goods/Services Cancelled",
+        "respond_by": 1788489771,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 198160,
+        "captured": true,
+        "created_at": 1787816513,
+        "currency": "INR",
+        "email": "user7144@yahoo.in",
+        "entity": "payment",
+        "id": "pay_0263",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

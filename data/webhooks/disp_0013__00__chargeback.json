@@ -1,0 +1,37 @@
+{
+  "created_at": 1786802504,
+  "event": "dispute.created",
+  "event_id": "evt_0015",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 134991,
+        "amount_deducted": 134991,
+        "created_at": 1786802504,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0013",
+        "network": "mastercard",
+        "payment_id": "pay_0014",
+        "phase": "chargeback",
+        "reason_code": "4863",
+        "reason_description": "Cardholder Does Not Recognise - Potential Fraud",
+        "respond_by": 1789003320,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 134991,
+        "captured": true,
+        "created_at": 1786802504,
+        "currency": "INR",
+        "email": "user3749@outlook.com",
+        "entity": "payment",
+        "id": "pay_0014",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

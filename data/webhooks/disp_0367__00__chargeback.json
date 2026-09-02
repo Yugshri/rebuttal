@@ -1,0 +1,37 @@
+{
+  "created_at": 1787618686,
+  "event": "dispute.created",
+  "event_id": "evt_0369",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 2108635,
+        "amount_deducted": 2108635,
+        "created_at": 1787618686,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0367",
+        "network": "rupay",
+        "payment_id": "pay_0368",
+        "phase": "chargeback",
+        "reason_code": "121",
+        "reason_description": "Goods/Services Not Received (RuPay)",
+        "respond_by": 1788826145,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 2108635,
+        "captured": true,
+        "created_at": 1787618686,
+        "currency": "INR",
+        "email": "user3667@outlook.com",
+        "entity": "payment",
+        "id": "pay_0368",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

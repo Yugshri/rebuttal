@@ -1,0 +1,37 @@
+{
+  "created_at": 1787928586,
+  "event": "dispute.created",
+  "event_id": "evt_0318",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 1790492,
+        "amount_deducted": 1790492,
+        "created_at": 1787928586,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0316",
+        "network": "amex",
+        "payment_id": "pay_0317",
+        "phase": "chargeback",
+        "reason_code": "C08",
+        "reason_description": "Goods/Services Not Received or Only Partially Received",
+        "respond_by": 1789358835,
+        "status": "under_review"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 1790492,
+        "captured": true,
+        "created_at": 1787928586,
+        "currency": "INR",
+        "email": "user8587@yahoo.in",
+        "entity": "payment",
+        "id": "pay_0317",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

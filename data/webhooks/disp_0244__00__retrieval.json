@@ -1,0 +1,37 @@
+{
+  "created_at": 1787091910,
+  "event": "dispute.created",
+  "event_id": "evt_0246",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 171486,
+        "amount_deducted": 171486,
+        "created_at": 1787091910,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0244",
+        "network": "amex",
+        "payment_id": "pay_0245",
+        "phase": "retrieval",
+        "reason_code": "C31",
+        "reason_description": "Goods/Services Not As Described",
+        "respond_by": 1789649149,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 171486,
+        "captured": true,
+        "created_at": 1787091910,
+        "currency": "INR",
+        "email": "user4331@gmail.com",
+        "entity": "payment",
+        "id": "pay_0245",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

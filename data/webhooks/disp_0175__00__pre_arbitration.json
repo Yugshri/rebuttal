@@ -1,0 +1,37 @@
+{
+  "created_at": 1786554822,
+  "event": "dispute.created",
+  "event_id": "evt_0177",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 85352,
+        "amount_deducted": 85352,
+        "created_at": 1786554822,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0175",
+        "network": "mastercard",
+        "payment_id": "pay_0176",
+        "phase": "pre_arbitration",
+        "reason_code": "4834",
+        "reason_description": "Point-of-Interaction Error",
+        "respond_by": 1790227992,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 85352,
+        "captured": true,
+        "created_at": 1786554822,
+        "currency": "INR",
+        "email": "user8837@outlook.com",
+        "entity": "payment",
+        "id": "pay_0176",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

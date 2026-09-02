@@ -1,0 +1,37 @@
+{
+  "created_at": 1786320893,
+  "event": "dispute.created",
+  "event_id": "evt_0039",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 490916,
+        "amount_deducted": 490916,
+        "created_at": 1786320893,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0037",
+        "network": "amex",
+        "payment_id": "pay_0038",
+        "phase": "fraud",
+        "reason_code": "F29",
+        "reason_description": "Card Not Present",
+        "respond_by": 1788914188,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 490916,
+        "captured": true,
+        "created_at": 1786320893,
+        "currency": "INR",
+        "email": "user9556@yahoo.in",
+        "entity": "payment",
+        "id": "pay_0038",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

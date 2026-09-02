@@ -1,0 +1,37 @@
+{
+  "created_at": 1786971978,
+  "event": "dispute.created",
+  "event_id": "evt_0397",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 262161,
+        "amount_deducted": 262161,
+        "created_at": 1786971978,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0049",
+        "network": "mastercard",
+        "payment_id": "pay_0050",
+        "phase": "arbitration",
+        "reason_code": "4863",
+        "reason_description": "Cardholder Does Not Recognise - Potential Fraud",
+        "respond_by": 1787708160,
+        "status": "under_review"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 262161,
+        "captured": true,
+        "created_at": 1785973168,
+        "currency": "INR",
+        "email": "user6933@rediffmail.com",
+        "entity": "payment",
+        "id": "pay_0050",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

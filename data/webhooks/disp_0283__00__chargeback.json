@@ -1,0 +1,37 @@
+{
+  "created_at": 1787861151,
+  "event": "dispute.created",
+  "event_id": "evt_0285",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 197897,
+        "amount_deducted": 197897,
+        "created_at": 1787861151,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0283",
+        "network": "amex",
+        "payment_id": "pay_0284",
+        "phase": "chargeback",
+        "reason_code": "C08",
+        "reason_description": "Goods/Services Not Received or Only Partially Received",
+        "respond_by": 1789715759,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 197897,
+        "captured": true,
+        "created_at": 1787861151,
+        "currency": "INR",
+        "email": "user7094@rediffmail.com",
+        "entity": "payment",
+        "id": "pay_0284",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

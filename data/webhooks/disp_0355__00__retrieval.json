@@ -1,0 +1,37 @@
+{
+  "created_at": 1787222012,
+  "event": "dispute.created",
+  "event_id": "evt_0357",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 554179,
+        "amount_deducted": 554179,
+        "created_at": 1787222012,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0355",
+        "network": "mastercard",
+        "payment_id": "pay_0356",
+        "phase": "retrieval",
+        "reason_code": "4841",
+        "reason_description": "Cancelled Recurring Transaction",
+        "respond_by": 1788394916,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 554179,
+        "captured": true,
+        "created_at": 1787222012,
+        "currency": "INR",
+        "email": "user5663@gmail.com",
+        "entity": "payment",
+        "id": "pay_0356",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

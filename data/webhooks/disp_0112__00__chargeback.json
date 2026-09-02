@@ -1,0 +1,37 @@
+{
+  "created_at": 1786629304,
+  "event": "dispute.created",
+  "event_id": "evt_0114",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 401547,
+        "amount_deducted": 401547,
+        "created_at": 1786629304,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0112",
+        "network": "visa",
+        "payment_id": "pay_0113",
+        "phase": "chargeback",
+        "reason_code": "11.2",
+        "reason_description": "Declined Authorisation",
+        "respond_by": 1790318790,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 401547,
+        "captured": true,
+        "created_at": 1786629304,
+        "currency": "INR",
+        "email": "user8688@yahoo.in",
+        "entity": "payment",
+        "id": "pay_0113",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "created_at": 1787013860,
+  "event": "dispute.created",
+  "event_id": "evt_0003",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 119364,
+        "amount_deducted": 119364,
+        "created_at": 1787013860,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0001",
+        "network": "amex",
+        "payment_id": "pay_0002",
+        "phase": "fraud",
+        "reason_code": "F24",
+        "reason_description": "No Cardholder Authorisation",
+        "respond_by": 1788541135,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 119364,
+        "captured": true,
+        "created_at": 1787013860,
+        "currency": "INR",
+        "email": "user6210@outlook.com",
+        "entity": "payment",
+        "id": "pay_0002",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

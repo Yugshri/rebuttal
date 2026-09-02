@@ -1,0 +1,37 @@
+{
+  "created_at": 1787243425,
+  "event": "dispute.created",
+  "event_id": "evt_0315",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 347260,
+        "amount_deducted": 347260,
+        "created_at": 1787243425,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0313",
+        "network": "amex",
+        "payment_id": "pay_0314",
+        "phase": "pre_arbitration",
+        "reason_code": "C05",
+        "reason_description": "Goods/Services Cancelled",
+        "respond_by": 1789058128,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 347260,
+        "captured": true,
+        "created_at": 1787243425,
+        "currency": "INR",
+        "email": "user6033@outlook.com",
+        "entity": "payment",
+        "id": "pay_0314",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

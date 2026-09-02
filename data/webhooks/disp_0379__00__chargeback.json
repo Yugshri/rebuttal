@@ -1,0 +1,37 @@
+{
+  "created_at": 1787512058,
+  "event": "dispute.created",
+  "event_id": "evt_0381",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 119959,
+        "amount_deducted": 119959,
+        "created_at": 1787512058,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0379",
+        "network": "rupay",
+        "payment_id": "pay_0380",
+        "phase": "chargeback",
+        "reason_code": "121",
+        "reason_description": "Goods/Services Not Received (RuPay)",
+        "respond_by": 1789553014,
+        "status": "under_review"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 119959,
+        "captured": true,
+        "created_at": 1787512058,
+        "currency": "INR",
+        "email": "user3917@rediffmail.com",
+        "entity": "payment",
+        "id": "pay_0380",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

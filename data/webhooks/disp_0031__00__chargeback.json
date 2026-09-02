@@ -1,0 +1,37 @@
+{
+  "created_at": 1786688308,
+  "event": "dispute.created",
+  "event_id": "evt_0033",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 383819,
+        "amount_deducted": 383819,
+        "created_at": 1786688308,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0031",
+        "network": "amex",
+        "payment_id": "pay_0032",
+        "phase": "chargeback",
+        "reason_code": "F29",
+        "reason_description": "Card Not Present",
+        "respond_by": 1790357546,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 383819,
+        "captured": true,
+        "created_at": 1786688308,
+        "currency": "INR",
+        "email": "user7382@gmail.com",
+        "entity": "payment",
+        "id": "pay_0032",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

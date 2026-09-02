@@ -1,0 +1,37 @@
+{
+  "created_at": 1785935260,
+  "event": "dispute.created",
+  "event_id": "evt_0237",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 240447,
+        "amount_deducted": 240447,
+        "created_at": 1785935260,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0235",
+        "network": "mastercard",
+        "payment_id": "pay_0236",
+        "phase": "retrieval",
+        "reason_code": "4853",
+        "reason_description": "Cardholder Dispute",
+        "respond_by": 1788549034,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 240447,
+        "captured": true,
+        "created_at": 1785935260,
+        "currency": "INR",
+        "email": "user2819@rediffmail.com",
+        "entity": "payment",
+        "id": "pay_0236",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "created_at": 1787987113,
+  "event": "dispute.created",
+  "event_id": "evt_0231",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 123895,
+        "amount_deducted": 123895,
+        "created_at": 1787987113,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0229",
+        "network": "visa",
+        "payment_id": "pay_0230",
+        "phase": "chargeback",
+        "reason_code": "12.6",
+        "reason_description": "Duplicate Processing / Paid by Other Means",
+        "respond_by": 1788346916,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 123895,
+        "captured": true,
+        "created_at": 1787987113,
+        "currency": "INR",
+        "email": "user6342@hotmail.com",
+        "entity": "payment",
+        "id": "pay_0230",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "created_at": 1786706563,
+  "event": "dispute.created",
+  "event_id": "evt_0360",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 368677,
+        "amount_deducted": 368677,
+        "created_at": 1786706563,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0358",
+        "network": "mastercard",
+        "payment_id": "pay_0359",
+        "phase": "chargeback",
+        "reason_code": "4846",
+        "reason_description": "Correct Transaction Currency Code Not Provided",
+        "respond_by": 1790195737,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 368677,
+        "captured": true,
+        "created_at": 1786706563,
+        "currency": "INR",
+        "email": "user4345@gmail.com",
+        "entity": "payment",
+        "id": "pay_0359",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

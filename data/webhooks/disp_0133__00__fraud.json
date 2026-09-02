@@ -1,0 +1,37 @@
+{
+  "created_at": 1787867116,
+  "event": "dispute.created",
+  "event_id": "evt_0135",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 318842,
+        "amount_deducted": 318842,
+        "created_at": 1787867116,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0133",
+        "network": "visa",
+        "payment_id": "pay_0134",
+        "phase": "fraud",
+        "reason_code": "11.1",
+        "reason_description": "Card Recovery Bulletin",
+        "respond_by": 1789208392,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 318842,
+        "captured": true,
+        "created_at": 1787867116,
+        "currency": "INR",
+        "email": "user5234@outlook.com",
+        "entity": "payment",
+        "id": "pay_0134",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}

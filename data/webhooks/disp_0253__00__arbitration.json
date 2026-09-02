@@ -1,0 +1,37 @@
+{
+  "created_at": 1785999764,
+  "event": "dispute.created",
+  "event_id": "evt_0255",
+  "payload": {
+    "dispute": {
+      "entity": {
+        "amount": 44143,
+        "amount_deducted": 44143,
+        "created_at": 1785999764,
+        "currency": "INR",
+        "entity": "dispute",
+        "id": "disp_0253",
+        "network": "amex",
+        "payment_id": "pay_0254",
+        "phase": "arbitration",
+        "reason_code": "C08",
+        "reason_description": "Goods/Services Not Received or Only Partially Received",
+        "respond_by": 1789824053,
+        "status": "open"
+      }
+    },
+    "payment": {
+      "entity": {
+        "amount": 44143,
+        "captured": true,
+        "created_at": 1785999764,
+        "currency": "INR",
+        "email": "user1514@yahoo.in",
+        "entity": "payment",
+        "id": "pay_0254",
+        "method": "card",
+        "status": "captured"
+      }
+    }
+  }
+}
