@@ -28,6 +28,15 @@ def isolated_dbs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     from src.common import db
 
+    # Snapshot the module globals so teardown can restore them — otherwise a later
+    # test that reads db.EXTERNAL_DB_PATH sees this test's stale tmp path.
+    saved = (
+        db.EXTERNAL_DB_PATH,
+        db.SYSTEM_DB_PATH,
+        db.EXTERNAL_DB_URL,
+        db.SYSTEM_DB_URL,
+    )
+
     # Re-resolve module-level paths from the patched env, then drop cached engines.
     db.EXTERNAL_DB_PATH = external.resolve()
     db.SYSTEM_DB_PATH = system.resolve()
@@ -37,6 +46,12 @@ def isolated_dbs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     yield {"external": external, "system": system}
 
+    (
+        db.EXTERNAL_DB_PATH,
+        db.SYSTEM_DB_PATH,
+        db.EXTERNAL_DB_URL,
+        db.SYSTEM_DB_URL,
+    ) = saved
     db.reset_engines_for_tests()
 
 

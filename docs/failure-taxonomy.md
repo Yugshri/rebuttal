@@ -5,9 +5,16 @@ precisely, with test backing — where this system is uncertain, where it defers
 human, and what it got wrong on the held-out set.
 
 Structure: one section per module (each module's owning subagent appends its own,
-never overwriting another's), then a system-level section owned by `qa-evaluator`
+never overwriting another's), then the `qa-evaluator` section (test-suite shape +
+what the harness measures) and a system-level section owned by `qa-evaluator`
 with the measured false-positive cost and at least one fully walked-through case
-where the system's recommendation and the actual/expected outcome disagreed.
+where the system's recommendation and the held-out expected outcome disagreed.
+
+> Reproduce every number in the `qa-evaluator` / System-level sections with
+> `.venv/Scripts/python.exe -m src.qa.harness` (writes `docs/evaluation-report.md`),
+> or `.venv/Scripts/python.exe -m pytest tests/qa/ -q`. `src/qa/` is the **only**
+> code in the repo that reads `data/heldout/`; `tests/qa/test_defense_only_boundary.py`
+> asserts no runtime/pipeline source references that directory.
 
 > Scope note: `compliance-knowledge-graph` provides decision-support grounding and
 > explainability. It is **not** a legal compliance certification and does not
@@ -792,12 +799,209 @@ this case as a coin-flip a human should call.
 
 ## Module: qa-evaluator
 
-_(pending — appended by the qa-evaluator subagent)_
+Owner: `qa-evaluator`. Scope: the test-suite structure, the
+precision/recall/false-positive-cost harness (`src/qa/harness.py`), the
+defense-only boundary test, the deadline-miss test, cross-pipeline integration
+tests, and this document's overall structure. This module **measures**; it never
+patches the system under test — a failing metric is reported to the orchestrator
+for routing to the owning module.
+
+### What runs, and where the numbers come from
+
+| test file | what it pins |
+|---|---|
+| `tests/qa/test_metrics_harness.py` | replays all 135 webhooks → 129 disputes through `run_pipeline` at the corpus's frozen clock, scores against `data/heldout/`, prints the full report table, writes `docs/evaluation-report.md`, asserts headline metrics sit in a sane band (wide bands on purpose — the report is the deliverable, not a gate) |
+| `tests/qa/test_defense_only_boundary.py` | a write through the read-only external engine **raises** `OperationalError`; `RecommendedAction` has no submitted/dispatched member; no outbound-HTTP / payments-SDK / messaging client anywhere in runtime `src/` except `src/common/llm.py` (Sarvam only, explanation-letter only); the dispatch transition is written in exactly one file (`src/scoring/api.py`); no runtime/pipeline source reads `data/heldout/` |
+| `tests/qa/test_deadline_miss.py` | `run_deadline_scan` flags a case at 20h and at 47.5h from `respond_by`, stays silent at 72h, flags an overdue case (negative hours), does not flag a terminal-status case inside the window, retires a flag when the case resolves, and dispatches nothing |
+| `tests/qa/test_pipeline_integration.py` | one clean fraud case webhook→classify→assemble→enrich→score→route with a coherent end state; every dispute lands in exactly one queue with a rationale; two genuine reopen chains (`disp_0049`, `disp_0091`: `won`→later phase) re-enter `human_review` with the `reopened_dispute_re_entered_review` gate; DPDP citations appear in `EvidenceBundle.compliance_citations` **and** the scorer's recommendation citation list **and** its rationale text |
+
+The harness scopes the two source-scans that would otherwise trip on build-time
+code to **runtime** `src/` — `src/synthetic/` (the data generator: populates
+`external.db` directly as a build step, explicitly outside the credential model
+per `src/common/db.py`; it legitimately sets `.status` on synthetic dispute
+objects and names "razorpay" in a provenance string) and `src/qa/` (this
+evaluator, not shipped) are excluded. That exclusion is deliberate and named
+here rather than hidden.
+
+### Where the harness itself is uncertain / limited
+
+1. **Held-out dispositions are designer intent, not dispute outcomes.**
+   `dispute_dispositions.json` encodes *what the pipeline should do*
+   (a combination of phase, completeness bucket, deadline, reopen, mule-linkage,
+   plus 4 hand-flagged coin-flips) — **not** what a card network would rule.
+   Every "routing accuracy" / "agreement" number is against that intent. There
+   is no real issuer; any win-rate claim would be fiction. Stated on every
+   report.
+2. **Risk precision is measured against an inflated base rate.** The synthetic
+   graph plants 3 mules in 305 accounts (~1%), ~10× a real AML transaction rate.
+   The clean 3-of-3 recall and 0-of-2 bursty-control specificity are partly a
+   property of loud planted signal at demo scale. The report states the planted
+   prevalence next to the metric and scores strict precision (only the 3 planted
+   mules are positives) precisely so the structural-false-positive count is
+   visible rather than hidden behind a favourable denominator.
+3. **The false-positive cost model is a stated assumption, not a measurement.**
+   12 analyst-minutes/case and ₹10/analyst-minute are plausible figures for
+   Indian dispute-ops, not observed ones. What the harness *does* measure
+   exactly is the **case count** and *which* wrong signal drove each one
+   (risk-flag FP on a `normal` account vs. an evidence/threshold miss).
+4. **Classification scores ~perfectly (1.00) because it is a deterministic view
+   over the shared reason-code table** — `category_hint` in the held-out set and
+   the router's category are both derived from `src/common/reason_codes.py`, so
+   this metric mostly confirms the table is internally consistent and the
+   `needs_manual_classification` bucket (11/129) is routed, not guessed. It is
+   not evidence the mapping is *complete* for real-world codes.
+5. **Single frozen clock.** The whole corpus is scored at
+   `2026-09-03T12:00:00Z`. Deadline-sensitive gates are evaluated at exactly one
+   instant; the harness does not sweep the clock to test gate behaviour over
+   time (the dedicated `tests/qa/test_deadline_miss.py` does that separately, on
+   synthetic cases).
+6. **Test-harness sharp edge (not a pipeline bug).** The shared
+   `tests/conftest.py::isolated_dbs` fixture repoints `db.EXTERNAL_DB_PATH` but
+   restores only the engines, not the path, on teardown — so a later test that
+   reads the module global sees a stale tmp path. `src/qa/harness.py` sidesteps
+   this by always setting external/system paths explicitly inside its
+   `corpus_env` context and restoring all four in a `finally`. Flagged to the
+   orchestrator as a cleanup worth doing in `conftest.py`, not done here (out of
+   this module's scope).
 
 ---
 
 ## System-level
 
-_(pending — owned by qa-evaluator: measured false-positive cost, integration-test
-failures found and how they were resolved, and the centerpiece walked-through
-disagreement example)_
+Owned by `qa-evaluator`. Numbers below are from
+`.venv/Scripts/python.exe -m src.qa.harness` on the committed corpus; the full
+table is regenerated into `docs/evaluation-report.md`.
+
+### Headline metrics (synthetic held-out set, 129 disputes, 305 accounts)
+
+| task | metric | value | read it as |
+|---|---|---|---|
+| Category classification | macro P / macro R / accuracy | 1.00 / 1.00 / 1.00 | deterministic view over the shared reason-code table — confirms consistency, not real-world coverage |
+| — `needs_manual_classification` bucket | precision / recall | 1.00 / 1.00 (11 tp) | unmapped codes are routed to a human, never guessed |
+| Risk flagging (strict: only 3 planted mules are positives) | precision / recall | **0.30 / 1.00** | all 3 mules caught; 7 of 10 HIGH-band accounts are `normal`-labelled — the documented structural false positives |
+| — planted mules flagged HIGH | count | 3 / 3 (dev 14.3 / 20.5 / 22.6) | — |
+| — bursty controls flagged HIGH | count | **0 / 2** (dev 0.0, 2.25) | the false-positive target did **not** fire |
+| Routing (positive = `assemble_clean` / `draft_for_submit`) | precision / recall / F1 | **0.936 / 0.868 / 0.901** | — |
+| — agreement with held-out dispositions | accuracy | **0.899** (116 / 129) | against designer intent, not a card-network outcome |
+| Routing confusion | draft&clean / human&defer / draft-but-defer / human-but-draft | 59 / 57 / 4 / 9 | — |
+
+### Measured false-positive cost
+
+**9 legitimate cases** (held-out `assemble_clean`, not a hand-flagged borderline
+flip) were pushed to unnecessary human review:
+
+- **3** driven by a **risk-flag false positive on a `normal` account**
+  (`disp_0073`, `disp_0271`, `disp_0337`) — consumers/merchants whose synthetic
+  payments cross a market-A/market-B cluster boundary, which
+  `risk-graph-service`'s coarse `cluster` label reads as a mule-style
+  cross-cluster bridge (`baseline_deviation` 4.9–7.6, `elevated` band). The
+  scorer faithfully propagates that penalty and it tips an otherwise-recoverable
+  partial-evidence case under the 0.72 threshold.
+- **6** driven by an **evidence-completeness / threshold miss** (`disp_0031`,
+  `disp_0133`, `disp_0172`, `disp_0181`, `disp_0196`, `disp_0325`) — `partial`
+  bundles scoring 0.54–0.71, just under threshold, that the held-out labeller
+  (which does not treat a lone missing non-critical slot as a defer) marks
+  clean.
+- **0** bursty-control-linked disputes deferred *because risk flagged the
+  account* — the `illicit_counterparty_fraction` gate held.
+
+**Cost model (stated, not hidden):** ~12 analyst-minutes to open, read the
+assembled bundle, confirm it is clean, and dispatch a case that per ground truth
+needed no human judgement; fully-loaded Indian dispute-ops analyst ≈ ₹10/minute.
+
+**⇒ ~108 avoidable analyst-minutes (~1.8 h) per 129-dispute corpus, ≈ ₹1,080.**
+Scaled linearly to a real book this is the class the risk taxonomy warns would
+dominate the queue.
+
+**Bounded harm — this is the point of the defense-only boundary.** Not one of
+these 9 cases costs frozen funds, an auto-contact, or an auto-submission. Every
+one lands in a queue with `dispatched = False`; the worst outcome is analyst
+time plus a few hours of added latency before the merchant's evidence is
+dispatched. The reverse error (4 held-out `defer_to_human` cases the pipeline
+drafted) costs ≈ 0 operationally — they too sit in `draft_for_submit` with
+`dispatched = False`, so a human still reads them before anything is submitted.
+
+### Integration failures found, and how they were resolved
+
+No pipeline behaviour bug was found: all 129 disputes flow webhook → classified →
+assembled → risk-enriched → scored → routed and land in exactly one queue with a
+coherent rationale; the 6 reopen chains all re-enter `human_review`; citations
+surface in both the bundle and the recommendation. Two things worth recording:
+
+1. **Committed-webhook `respond_by` vs. held-out `hours_to_deadline` drift.** For
+   a handful of cases (e.g. `disp_0076`) the `respond_by` baked into the
+   committed webhook resolves a few hours either side of the held-out set's own
+   `hours_to_deadline`, so the pipeline's 48h deadline gate and the labeller's
+   `within_48h` factor disagree at the margin. This is a synthetic-data
+   consistency gap, already noted by `confidence-scorer-review`; it accounts for
+   1 of the 4 "drafted but should defer" misses. Not fixed — it is inside the
+   noise the wide metric bands allow, and forcing the two into lockstep would
+   mean the pipeline reading the held-out set. Flagged to `synthetic-data-generator`.
+2. **`conftest.py::isolated_dbs` does not restore `db.EXTERNAL_DB_PATH`** (see
+   qa-evaluator section point 6). Worked around inside `src/qa/harness.py`;
+   flagged to the orchestrator as a `conftest.py` cleanup, not patched from here.
+
+### Centerpiece: where the system's recommendation and the held-out expectation disagree
+
+**`disp_0271` — the pipeline routes a clean, low-value consumer dispute to human
+review because a legitimate consumer account looks structurally like a mule.**
+
+This is the *system-level* mirror of `confidence-scorer-review`'s `disp_0064`
+centerpiece. There the inputs were all clean and the score was wrongly high;
+here one enrichment signal is wrong and it correctly, faithfully drags an
+otherwise-clean case down.
+
+Walked through, against `data/heldout/dispute_dispositions.json` (read only by
+`src/qa/harness.py` to author this — the pipeline path never touches it):
+
+| signal | value | what the scorer sees |
+|---|---|---|
+| reason category | `consumer_dispute` (Visa 13.x, merchandise not received) | required slots resolved, assembler ran |
+| phase | `chargeback` (rank 2, below the escalation gate) | no late-phase gate |
+| amount | ₹1,398.01 | low-value |
+| `EvidenceBundle.completeness` | **0.80** — one non-critical required slot `missing`, `assembly_status = partial` | evidence contribution `0.65 × 0.80 = 0.52` |
+| `hours_to_deadline` | outside the 48h window | no deadline-pressure gate |
+| counterparty | `ACC_CONS_151` (held-out label: **`normal`**) | resolved read-only from `payments` |
+| `AccountRiskProfile.baseline_deviation` | **7.57**, band `elevated`, `illicit_counterparty_fraction = 0.33` | risk factor `1 − min(7.57/8, 1) = 0.054`; contribution `0.35 × 0.054 = 0.019` |
+| **confidence** | **0.539**, no hard gates | `0.539 < 0.72` → `human_review` |
+
+**Held-out ground truth: `expected_disposition = assemble_clean`,
+`factors = []`, `borderline_flip = False`.** The disposition labeller sees a
+low-value, mid-phase, `partial`-but-not-severe consumer dispute with no defer
+factor, on an account it labels `normal`.
+
+**Why they disagree — the real reasoning.** `ACC_CONS_151` is an ordinary
+market-A consumer whose synthetic card payments happen to include a few market-B
+merchants. `risk-graph-service`'s cross-community signal keys on a **coarse,
+given `cluster` label** (community detection on the real graph was tried and was
+noisier — see risk-graph-service taxonomy point 1), so "counterparty in a
+different cluster" fires; the account's sparse per-window history (a few payroll
+credits in, ~8–12 payments out) makes one active window look like 33% new /
+cross-cluster counterparties. That produces `baseline_deviation = 7.57`
+(`elevated`). The confidence scorer is doing exactly what it should with that
+input: a risky counterparty *should* lower confidence regardless of evidence
+completeness. Take the risk penalty away (set `baseline_deviation = 0`) and the
+same case scores `0.52 + 0.35 = 0.87` → `draft_for_submit`. The risk
+false-positive is the whole difference.
+
+**What it implies:**
+
+1. **The scorer is not wrong here — its input is.** This is the designed
+   consequence of enrichment: `confidence-scorer-review` consumes
+   `baseline_deviation` and does not second-guess it (by design — "if an input
+   looks wrong, that is a bug in the owning module"). The fix belongs in
+   `risk-graph-service` (graph-derived communities, a rank-based transform
+   instead of the capped z, a wider baseline for thin-history accounts), not in
+   a scorer workaround.
+2. **The cost is one analyst opening a low-value case, seeing the
+   "cross-cluster" flag is a market-boundary artefact, and dispatching it.**
+   ~12 minutes. `disp_0271` routed to `human_review` with `dispatched = False` —
+   nothing was submitted, nothing was frozen, no customer was contacted. The
+   defense-only boundary is what makes this false positive a nuisance rather
+   than a harm.
+3. **This class (not the mules) is what would dominate a real queue.** 3 of the
+   9 measured false-positive-cost cases are exactly this pattern, and the risk
+   taxonomy independently predicts it scales badly. The honest headline is not
+   "we catch 3/3 mules" — it is "we catch 3/3 mules **and** send ~7 legitimate
+   accounts per few-hundred to a human for the same structural reason, at a cost
+   of analyst minutes and zero autonomous action."
