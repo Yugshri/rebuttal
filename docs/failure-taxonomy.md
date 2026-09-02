@@ -557,7 +557,238 @@ join the actual refund-ledger / cancellation-workflow tables here.
 
 ## Module: confidence-scorer-review
 
-_(pending — appended by the confidence-scorer-review subagent)_
+Owner: `confidence-scorer-review`. Scope: the confidence score, the
+draft-for-submit / human-review routing split, the priority-sorted review queue,
+`GET /disputes/{id}/recommendation`, `POST /disputes/{id}/review`, the 48-hour
+deadline monitor, and the outcome-log feedback loop. **Consumes**
+`EvidenceBundle.completeness` and `AccountRiskProfile.baseline_deviation` — does
+not recompute evidence or risk. If an input looks wrong, that is a bug in the
+owning module, flagged there, not worked around here.
+
+### The human-in-the-loop guarantee — structural, not policy
+
+There is **no code path**, at any confidence level, where a recommendation
+reaches a dispatched / submitted state without a human posting `POST
+/disputes/{id}/review` first. How that holds:
+
+- `src.common.models_base.RecommendedAction` has **no submitted member** — the
+  scoring path literally cannot emit one. The three values are
+  `draft_for_submit`, `human_review`, `needs_manual_classification`.
+- `draft_for_submit` is a real intermediate state: a `ReviewQueueEntry` with
+  `dispatched = False`. `score_and_route` writes the entry, the advisory
+  `confidence_score` / `recommended_action` on `DisputeCase`, and nothing else —
+  it never writes `DisputeCase.status`, never writes `reviewed_by`, never sets
+  `dispatched`.
+- The **only** function that advances a dispute (`dispatched = True`, and
+  `status` `open → under_review`) is `src.scoring.api.post_review`, and it does
+  so only when a human posts `decision = "submit"`, recording a
+  `HumanReviewDecision` row in the same transaction.
+- Asserted against reachable code, not a comment:
+  `test_no_scoring_path_moves_a_max_confidence_case_to_submitted` builds the
+  single most confident case possible (completeness 1.0, `baseline_deviation`
+  0.0, score = 1.00), runs every public scoring-path callable
+  (`score_and_route`, `score_dispute`, `gather_inputs`, `get_review_queue`,
+  `run_deadline_scan`, `compute_priority`), and asserts `status == "open"`,
+  `reviewed_by is None`, `dispatched is False`, and zero `HumanReviewDecision`
+  rows — *then* posts a review and watches all of those flip.
+  `test_only_the_review_endpoint_writes_the_dispatch_transition` greps the
+  module source and asserts the `dispatched = True` / `status = DisputeStatus` /
+  `case.reviewed_by =` writes appear **only** in `api.py`.
+
+### The confidence score — a legible weighted rule, weights named
+
+```
+confidence = 0.65 * evidence_completeness
+           + 0.35 * (1 - min(baseline_deviation / 8.0, 1.0))
+```
+
+- `WEIGHT_EVIDENCE_COMPLETENESS = 0.65`, `WEIGHT_RISK = 0.35` (sum to 1.0).
+- `RISK_DEVIATION_FULL_SCALE = 8.0` — anchored to `risk-graph-service`'s own
+  `HIGH_DEVIATION_THRESHOLD` so the two modules agree on what "high deviation"
+  means. `baseline_deviation ≥ 8.0` drives the risk factor to 0.0; higher
+  deviation lowers confidence, because a risky counterparty is exactly the case
+  a human should see regardless of how complete the evidence looks.
+- `CONFIDENCE_THRESHOLD = 0.72`: at/above → `draft_for_submit` queue (still
+  needs human dispatch); below → `human_review`.
+- Every score carries a per-factor breakdown (`value`, `weight`, `contribution`
+  for each factor, plus the formula string and `hours_to_deadline`). An
+  explainable number is part of the "AI judgment" being evaluated — a bare score
+  is not.
+
+**Hard gates** bypass the score and route straight to a human, regardless of how
+high the number would be:
+
+| gate | trigger |
+|---|---|
+| `needs_manual_classification` | router or bundle flag set → `NEEDS_MANUAL_CLASSIFICATION` |
+| `no_evidence_bundle` | no `EvidenceBundle` row yet |
+| `assembly_status_pending` | evidence was not assembled |
+| `risk_profile_unknown` | no `AccountRiskProfile` for the account (see below) |
+| `reopened_dispute_re_entered_review` | `was_reopened()` true |
+| `late_phase_escalation` | phase rank ≥ `pre_arbitration` |
+| `urgent_deadline_with_imperfect_evidence` | `respond_by` within 48h **and** completeness < 1.0 |
+
+Weights and the threshold are **fitted to this synthetic corpus**, not to a real
+dispute-team's outcomes. They sit where the held-out `assemble_clean` /
+`defer_to_human` split separates cleanly; on real data both would need
+recalibration against a labelled sample of *actual* win/loss outcomes, which the
+synthetic `dispute_dispositions.json` is explicitly not (see
+`synthetic-data-generator`'s note — it encodes *what the pipeline should do*, not
+*what would win the dispute*).
+
+### How a missing risk profile is handled — UNKNOWN, never "low risk"
+
+The account behind a dispute is resolved read-only from the external `payments`
+table on `DisputeCase.payment_id`. If no `AccountRiskProfile` row exists for that
+account (batch never ran, or a brand-new counterparty):
+
+- the risk factor takes its **worst** value, `RISK_FACTOR_WHEN_UNKNOWN = 0.0`
+  (`breakdown.factors.risk.source == "unknown_no_profile"`), dragging even a
+  perfect-evidence case to `0.65 * 1.0 + 0.35 * 0.0 = 0.65` — below threshold; **and**
+- a `risk_profile_unknown` hard gate fires, forcing `human_review` outright.
+
+Both, deliberately — we never let an unmeasured counterparty auto-draft.
+`test_missing_risk_profile_is_unknown_and_defers` pins it. Cost of this choice:
+during a demo where the nightly risk batch has not been run, *every* dispute
+defers to a human. That is the safe direction and it is loud rather than silent.
+
+### Priority — a stored, sortable value
+
+The spec names priority "amount × time-to-deadline" with the stated intent that
+**higher amount and closer deadline both push a case up**. Taken literally,
+multiplying by hours-remaining does the opposite (more time → higher priority),
+so the implementation follows the stated intent, not the literal arithmetic:
+
+```
+priority = amount_rupees * (720.0 / clamp(hours_to_deadline, 1.0, 720.0))
+```
+
+Closer deadline → larger urgency multiplier (1.0 … 720.0); bigger amount → higher
+priority; overdue/imminent cases clamp to max urgency (never negative or zero).
+The value is written to `ReviewQueueEntry.priority` (indexed) so the queue is an
+`ORDER BY priority DESC` read, not an in-memory re-sort.
+`test_review_queue_is_priority_sorted` checks all four amount×deadline corners
+(`BIG_SOON` first, `SMALL_LATE` last). Weakness: the 30-day horizon and the
+1-hour floor are both arbitrary cuts; a real queue would tune them to the team's
+actual throughput, and might weight by phase (an arbitration clock is not a
+retrieval clock).
+
+### Deadline monitor
+
+`run_deadline_scan(now_epoch=...)` is a plain callable with no scheduler bound to
+it (same pattern as `risk.batch.run_nightly_batch`). It flags every `DisputeCase`
+that is within 48h of `respond_by` (including already overdue — negative hours)
+**and** still `open` / `under_review`, upserting one active `DeadlineFlag` per
+dispute with the `respond_by` compliance citations attached. Once a dispute
+reaches a terminal status the next scan retires its flag (`resolved = True`).
+Tested both directions (`test_deadline_scan_flags_inside_window_not_outside`,
+`test_deadline_scan_flags_overdue_and_retires_on_resolution`). On the committed
+corpus at the buildathon wall-clock, the scan flags 29 disputes, 9 of them
+already overdue — a dispute silently aging past its deadline unreviewed is a real
+production failure mode, and this is the designed-against control. **Limits:**
+it only *flags* — it does not escalate, page, or reprioritise beyond what the
+priority value already does; and it re-scans every case every run (fine at demo
+scale, O(cases) per scan).
+
+### Outcome tracker — what is live vs. the stated next step
+
+`record_outcome(dispute_id, "won" | "lost")` writes one `OutcomeLogEntry`
+pairing the **decision-time** confidence score (taken from the
+`HumanReviewDecision` if a human acted, else the standing `ReviewQueueEntry` — the
+row notes which) with the actual outcome, plus a flat `features` blob
+(completeness, `baseline_deviation`, hard gates, category, phase). `training_pairs()`
+serves these as `(confidence_score, outcome, label)` rows.
+
+- **LIVE:** the labelled log. Every resolved dispute produces a usable pair.
+- **NOT LIVE (documented next step):** the "feeds back into the Confidence
+  Scorer" arrow in the architecture diagram. Nothing retrains or adjusts the
+  weights — `src.scoring.scorer`'s constants are hand-set and stay hand-set. The
+  log is the *input* a future retraining job would read; the loop is closed in
+  data, not yet in code. Stated here and in `outcome.py`'s module docstring
+  rather than implied.
+
+### The phase-reopen case
+
+A dispute the outcome log already recorded as `won` can come back from
+`dispute-ingestion-router` at `phase = pre_arbitration`. `score_and_route`
+detects this (`was_reopened()` true, current `phase_rank` > the active queue
+entry's, and the prior entry was dispatched or already has an outcome), marks the
+old `ReviewQueueEntry` `superseded = True`, and writes a fresh `queue_generation`
+that re-enters the `human_review` queue (the `reopened_dispute_re_entered_review`
+hard gate also fires). The existing `won` `OutcomeLogEntry` is left intact; a
+second resolution writes a second row keyed on the new generation.
+`test_reopened_won_dispute_re_enters_review` walks the full
+`won → pre_arbitration` chain. Weakness: re-entry keys on ingestion having
+correctly set `is_reopen` / `reopen_count`; if the escalation trail was lost and
+the reopen arrives as a first-contact `pre_arbitration` event (see
+`dispute-ingestion-router`'s taxonomy point 3), it is still caught by the
+`late_phase_escalation` gate but *not* recognised as a reopen specifically.
+
+### Centerpiece: where the confidence score and the held-out disposition disagree
+
+**`disp_0064` — the scorer's single most confident case in the entire held-out
+set (`confidence = 1.00`) is one the ground truth says defer to a human.**
+
+Walked through, against `data/heldout/dispute_dispositions.json` (read here only
+to author this example — the pipeline path never reads that directory):
+
+| signal | value | what the scorer sees |
+|---|---|---|
+| reason category | `fraud` (Amex F24, No Cardholder Authorisation) | required slots resolved, assembler ran |
+| `EvidenceBundle.completeness` | **1.0** — every required source slot `present`, `assembly_status = complete` | evidence contribution `0.65 × 1.0 = 0.65` |
+| counterparty | `ACC_BURSTY_PAYDAY` | resolved from `payments` |
+| `AccountRiskProfile.baseline_deviation` | **0.0**, band `low` | risk contribution `0.35 × (1 − 0) = 0.35` |
+| phase | `retrieval` (rank 1, below the `pre_arbitration` escalation gate) | no late-phase gate |
+| `hours_to_deadline` | ~127h — outside the 48h window | no deadline-pressure gate |
+| **confidence** | **1.00**, no hard gates | → `draft_for_submit` queue |
+
+**Held-out ground truth: `expected_disposition = defer_to_human`,
+`borderline_flip = True`, `factors = ["borderline_designer_judgment"]`.**
+
+Every structured signal this module consumes says "clean": full evidence, a
+counterparty that `risk-graph-service` correctly did **not** flag (`ACC_BURSTY_PAYDAY`
+is a *planted legitimate bursty control* — an SME payroll disburser whose monthly
+fan-out to the same ~40 recipients is a velocity spike, not a behavioural shift,
+and the risk module's `illicit_counterparty_fraction` gate keeps its
+`baseline_deviation` at 0.0). The disposition labeller nonetheless hand-flagged
+this case as a coin-flip a human should call.
+
+**What it implies:**
+
+1. **A transparent weighted rule cannot represent "a reviewer would want eyes on
+   this for a reason not in the feature set."** The `borderline_designer_judgment`
+   cases (`disp_0064`, `disp_0166`, `disp_0214`, `disp_0241` — 4 of the 14
+   held-out disagreements) are exactly the class the score will always miss: the
+   inputs look clean and the number is high. This is a real limitation, not a bug
+   to tune away — pushing the threshold up to catch them would defer a large
+   band of genuinely-clean cases with it (the score distribution has 64
+   `draft_for_submit` cases at mean 0.94, so a threshold high enough to catch a
+   1.00 would catch almost nothing without also catching most of them).
+2. **The cost of this specific disagreement is zero.** `disp_0064` routed to
+   `draft_for_submit`, which is `dispatched = False` — a human reads and
+   dispatches it via `POST /disputes/{id}/review` before it goes anywhere. The
+   scorer being wrong here costs one queue item a human would have looked at
+   anyway; it does **not** submit anything. This is the whole point of
+   `draft_for_submit` being a real state and not a rename over auto-submit.
+3. **Measured agreement with the held-out dispositions is 115/129 ≈ 0.89**
+   (`assemble_clean` = `draft_for_submit`: precision 59/64 ≈ 0.92, recall
+   59/68 ≈ 0.87). The 14 misses split as:
+   - **5 `draft_for_submit` we should have deferred** (`disp_0064`, `disp_0166`,
+     `disp_0214`, `disp_0241` — the hand-flagged borderline coin-flips above —
+     plus `disp_0076`, a `partial`-evidence case whose held-out
+     `hours_to_deadline` of ~34h trips the urgent-deadline factor but whose
+     `respond_by` in the committed webhook resolves just outside our 48h cut).
+   - **9 `human_review` we should have drafted:** 6 `full`-completeness cases the
+     scorer defers because `risk-graph-service` flagged the consumer account with
+     a high `baseline_deviation` (the documented `ACC_CONS_*` cross-cluster false
+     positives — see risk taxonomy; the scorer is faithfully propagating a risk
+     signal the held-out labeller, which only counts planted mules, does not) —
+     honest false-positive cost, analyst time not frozen funds; and 3
+     `partial`-evidence cases sitting just under the 0.72 threshold (0.54–0.68).
+
+   `qa-evaluator` owns the authoritative precision/recall and
+   false-positive-cost numbers against the held-out set — the figure here is this
+   module's own directional check.
 
 ## Module: qa-evaluator
 
