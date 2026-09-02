@@ -1,7 +1,7 @@
 ---
 name: risk-graph-service
 description: Use this agent for anything touching the transaction graph, PageRank/betweenness-centrality computation, AccountRiskProfile, mule-account detection, or COD/returns fraud signals. Has no dependency on dispute-ingestion-router or evidence-assembler — can be built in parallel with dispute-ingestion-router once synthetic-data-generator's transaction graph exists. Do not use for dispute classification, evidence assembly, or confidence scoring/review routing.
-tools: Read, Write, Edit, Bash, Grep, Glob
+tools: Read, Write, Edit, Bash, Grep, Glob, WebFetch, WebSearch
 model: sonnet
 ---
 

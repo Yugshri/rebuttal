@@ -1,7 +1,7 @@
 ---
 name: compliance-knowledge-graph
 description: Use this agent for building and querying the curated India regulatory/policy knowledge graph (PSS Act 2007, RBI's Payment Aggregator/Payment Gateway Master Direction, DPIP, DPDP Act 2023, Consumer Protection E-Commerce Rules 2020) that grounds this system's recommendations in named authority. No dependency on any other module — build in parallel with synthetic-data-generator, it only needs the fixed reason-code/evidence-slot vocabulary already in CLAUDE.md. Do not use for the transaction/counterparty risk graph (that's risk-graph-service) — this module is regulatory knowledge, not behavioral signal.
-tools: Read, Write, Edit, Bash, Grep, Glob
+tools: Read, Write, Edit, Bash, Grep, Glob, WebFetch, WebSearch
 model: sonnet
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: synthetic-data-generator
 description: Use this agent for building any synthetic dataset the system runs against — disputes, order/shipping/comms records, the transaction graph, or the labeled held-out evaluation set. Build this FIRST, before any other module — everything downstream depends on this data existing. Use PROACTIVELY at the very start of the build. Do not use for pipeline logic itself (routing, assembly, scoring) — this module only produces data, it never makes pipeline decisions.
-tools: Read, Write, Edit, Bash, Grep, Glob
+tools: Read, Write, Edit, Bash, Grep, Glob, WebFetch, WebSearch
 model: sonnet
 ---
 
