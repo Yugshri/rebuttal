@@ -28,3 +28,7 @@ Thumbs.db
 
 # Kaggle credentials (never commit)
 kaggle.json
+
+# Held-out ground-truth eval set — regenerable via `python -m src.synthetic.build`,
+# kept out of version control so the evaluation answer key is not published.
+data/heldout/
