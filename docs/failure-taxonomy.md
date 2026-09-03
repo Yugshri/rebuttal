@@ -16,6 +16,14 @@ where the system's recommendation and the held-out expected outcome disagreed.
 > code in the repo that reads `data/heldout/`; `tests/qa/test_defense_only_boundary.py`
 > asserts no runtime/pipeline source references that directory.
 
+> Held-out set is **not** in version control. `data/heldout/` is `.gitignore`d and
+> absent from every commit (it was removed from history and the repo recreated to
+> purge the objects). It is regenerated deterministically by
+> `python -m src.synthetic.build` from the same fixed seed as the rest of the
+> corpus, so the numbers are reproducible without publishing the evaluation answer
+> key alongside the code. `data/webhooks/` and `data/README.md` — the demo
+> *inputs* — remain committed; only the labels are withheld.
+
 > Scope note: `compliance-knowledge-graph` provides decision-support grounding and
 > explainability. It is **not** a legal compliance certification and does not
 > replace legal/compliance review of a real deployment.
@@ -46,6 +54,30 @@ stretch, and what real-world structure it still cannot contain.
 - `kalpitlabs/upi-fraud-detection-dataset-india-synthetic` — **opened via croissant metadata, held up, used** for feature vocabulary (see table). Not used for fraud rate: its 45% positive rate is synthetic rule-flag oversampling, not a real base rate.
 - `kumarperiya/comprehensive-indian-online-fraud-dataset` — **opened via croissant metadata, ruled out for calibration.** Only ~1,200 rows; columns `transaction_id, customer_id, merchant_id, amount, transaction_time, is_fraudulent, card_type, location, purchase_category, customer_age, fraud_type`; no published class balance, no distribution statistics, no account-linkage or velocity structure. Too thin to calibrate anything a global dataset doesn't already cover better.
 - Other India/UPI candidates named in the spec (`devildyno`, `iamravi11`, `bijitda`, `skullagos5246`) — not individually opened once the two closest-match datasets above resolved the India-specific need (feature vocabulary from one, and a documented "ruled out" from the other). Flagged here as an incomplete sweep rather than claimed as vetted.
+
+### Held-out set: isolation and reproducibility
+
+- **Regenerable, not committed.** `data/heldout/` (`account_labels.json`,
+  `dispute_dispositions.json`) is produced by `src/synthetic/heldout.py` as part
+  of `python -m src.synthetic.build`, from the same single seed
+  (`SEED = 20260902`) as the demo corpus. Two builds produce byte-identical
+  held-out files (`tests/test_synthetic_determinism.py`). It is `.gitignore`d and
+  was purged from git history so the evaluation answer key is not published with
+  the repo — anyone reproducing the metrics rebuilds it locally.
+- **No leakage into the pipeline path.** Ground-truth labels
+  (`is_planted_mule`, `expected_disposition`, `borderline_flip`, …) live only in
+  `data/heldout/`, never in a column the pipeline reads from `external.db`. The
+  generator computes labels from the same parameters it used to *plant* the
+  behaviour, not by observing the pipeline. `src/qa/` is the only code that opens
+  the directory; a source scan in `tests/qa/test_defense_only_boundary.py`
+  asserts no runtime module references it, and now that the directory is absent
+  from the repo a fresh checkout cannot read stale committed labels even by
+  mistake.
+- **Weakness.** Because labels are derived from the generator's own parameters,
+  they encode *designer intent* perfectly by construction. A held-out set built
+  this way can measure whether the pipeline recovers the planted structure; it
+  cannot surface a case the designer did not anticipate. See the `qa-evaluator`
+  section for what that means for every metric.
 
 ### Mapping gaps (named honestly)
 
@@ -855,22 +887,23 @@ here rather than hidden.
    instant; the harness does not sweep the clock to test gate behaviour over
    time (the dedicated `tests/qa/test_deadline_miss.py` does that separately, on
    synthetic cases).
-6. **Test-harness sharp edge (not a pipeline bug).** The shared
-   `tests/conftest.py::isolated_dbs` fixture repoints `db.EXTERNAL_DB_PATH` but
-   restores only the engines, not the path, on teardown — so a later test that
-   reads the module global sees a stale tmp path. `src/qa/harness.py` sidesteps
-   this by always setting external/system paths explicitly inside its
-   `corpus_env` context and restoring all four in a `finally`. Flagged to the
-   orchestrator as a cleanup worth doing in `conftest.py`, not done here (out of
-   this module's scope).
+6. **Test-harness sharp edge — found here, fixed by the orchestrator.** The
+   shared `tests/conftest.py::isolated_dbs` fixture repointed `db.EXTERNAL_DB_PATH`
+   but restored only the engines, not the path/URL globals, on teardown, so a
+   later test reading the module global saw a stale tmp path. `src/qa/harness.py`
+   already sidesteps it by setting all four external/system globals explicitly in
+   its `corpus_env` context and restoring them in a `finally`; the fixture itself
+   now snapshots and restores the four globals on teardown too. Both belt and
+   braces are kept — the harness does not rely on the fixture being correct.
 
 ---
 
 ## System-level
 
 Owned by `qa-evaluator`. Numbers below are from
-`.venv/Scripts/python.exe -m src.qa.harness` on the committed corpus; the full
-table is regenerated into `docs/evaluation-report.md`.
+`.venv/Scripts/python.exe -m src.qa.harness` — run against the committed webhook
+corpus and the locally-rebuilt held-out set (`python -m src.synthetic.build`,
+same seed); the full table is regenerated into `docs/evaluation-report.md`.
 
 ### Headline metrics (synthetic held-out set, 129 disputes, 305 accounts)
 
@@ -928,18 +961,21 @@ assembled → risk-enriched → scored → routed and land in exactly one queue 
 coherent rationale; the 6 reopen chains all re-enter `human_review`; citations
 surface in both the bundle and the recommendation. Two things worth recording:
 
-1. **Committed-webhook `respond_by` vs. held-out `hours_to_deadline` drift.** For
-   a handful of cases (e.g. `disp_0076`) the `respond_by` baked into the
-   committed webhook resolves a few hours either side of the held-out set's own
-   `hours_to_deadline`, so the pipeline's 48h deadline gate and the labeller's
-   `within_48h` factor disagree at the margin. This is a synthetic-data
-   consistency gap, already noted by `confidence-scorer-review`; it accounts for
-   1 of the 4 "drafted but should defer" misses. Not fixed — it is inside the
-   noise the wide metric bands allow, and forcing the two into lockstep would
-   mean the pipeline reading the held-out set. Flagged to `synthetic-data-generator`.
-2. **`conftest.py::isolated_dbs` does not restore `db.EXTERNAL_DB_PATH`** (see
-   qa-evaluator section point 6). Worked around inside `src/qa/harness.py`;
-   flagged to the orchestrator as a `conftest.py` cleanup, not patched from here.
+1. **Committed-webhook `respond_by` vs. regenerated held-out `hours_to_deadline`
+   drift.** For a handful of cases (e.g. `disp_0076`) the `respond_by` baked into
+   the committed webhook resolves a few hours either side of the held-out set's
+   own `hours_to_deadline` (both derive from the same seed, but through different
+   code paths in the generator), so the pipeline's 48h deadline gate and the
+   labeller's `within_48h` factor disagree at the margin. Synthetic-data
+   consistency gap, already noted by `confidence-scorer-review`; accounts for 1
+   of the 4 "drafted but should defer" misses. Not fixed — it is inside the noise
+   the wide metric bands allow, and forcing the two into lockstep would mean the
+   pipeline reading the held-out set. Flagged to `synthetic-data-generator`.
+2. **`conftest.py::isolated_dbs` global-restore gap — resolved.** The fixture
+   left `db.EXTERNAL_DB_PATH` and the three sibling globals pointing at a
+   torn-down tmp dir. `src/qa/harness.py` had already worked around it; the
+   orchestrator then fixed the fixture itself to snapshot and restore all four on
+   teardown (see qa-evaluator section point 6). Full suite green after the change.
 
 ### Centerpiece: where the system's recommendation and the held-out expectation disagree
 
